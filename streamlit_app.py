@@ -198,6 +198,7 @@ def _show_error(exc: Exception) -> None:
 
 
 BATCH_PICKER_PLACEHOLDER = "— Select or create —"
+_BATCH_PICKER_SYNC_KEY = "_batch_picker_target"
 
 
 def _list_batches(*, force_refresh: bool = False) -> list[str]:
@@ -219,7 +220,11 @@ def _set_active_batch(batch_id: str | None) -> None:
     """Select a batch in session state and sync the sidebar selectbox."""
     _invalidate_batch_cache()
     st.session_state.batch_id = batch_id
-    st.session_state.batch_picker = batch_id if batch_id else BATCH_PICKER_PLACEHOLDER
+    # Do NOT write to st.session_state.batch_picker here: if the selectbox has already been
+    # instantiated earlier in this run, Streamlit will raise:
+    # "st.session_state.<key> cannot be modified after the widget ... is instantiated."
+    # Instead, stash the desired value and let the sidebar apply it before creating the widget.
+    st.session_state[_BATCH_PICKER_SYNC_KEY] = batch_id if batch_id else BATCH_PICKER_PLACEHOLDER
 
 
 def _batch_select_options() -> list[str]:
@@ -278,13 +283,13 @@ def _sidebar() -> str | None:
 
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("🔄 Refresh", use_container_width=True):
+            if st.button("🔄 Refresh", use_container_width=True, key="sidebar_refresh"):
                 _invalidate_batch_cache()
                 if st.session_state.get("batch_id"):
-                    st.session_state.batch_picker = st.session_state.batch_id
+                    st.session_state[_BATCH_PICKER_SYNC_KEY] = st.session_state.batch_id
                 st.rerun()
         with col_b:
-            if st.button("➕ New batch", use_container_width=True):
+            if st.button("➕ New batch", use_container_width=True, key="sidebar_new_batch"):
                 _set_active_batch(None)
                 st.rerun()
 
@@ -292,6 +297,11 @@ def _sidebar() -> str | None:
 
         batches = _batch_select_options()
         options = [BATCH_PICKER_PLACEHOLDER] + batches
+
+        # Apply any programmatic "pick this batch" request *before* the widget is created.
+        if _BATCH_PICKER_SYNC_KEY in st.session_state:
+            st.session_state.batch_picker = st.session_state[_BATCH_PICKER_SYNC_KEY]
+            del st.session_state[_BATCH_PICKER_SYNC_KEY]
 
         if "batch_picker" not in st.session_state:
             st.session_state.batch_picker = BATCH_PICKER_PLACEHOLDER
@@ -1154,7 +1164,7 @@ def tab_exports(batch_id: str | None) -> None:
 
     st.divider()
     st.markdown("#### Quick downloads")
-    _render_file_browser(batch_id, cleaned_only=True)
+    _render_file_browser(batch_id, cleaned_only=True, ui_scope="exports")
 
 
 def _download_payload(info) -> tuple[bytes, str, str]:
@@ -1164,7 +1174,7 @@ def _download_payload(info) -> tuple[bytes, str, str]:
     return download_payload(info)
 
 
-def _render_file_browser(batch_id: str, *, cleaned_only: bool = False) -> None:
+def _render_file_browser(batch_id: str, *, cleaned_only: bool = False, ui_scope: str = "files") -> None:
     from app.utils.batch_file_browser import (
         build_batch_zip,
         cleaned_file_infos,
@@ -1185,6 +1195,7 @@ def _render_file_browser(batch_id: str, *, cleaned_only: bool = False) -> None:
             if x in ("raw", "bronze", "silver", "gold", "export", "sql", "metadata") else 99
         )),
         default=sorted({f.layer for f in all_files}),
+        key=f"layer_filter_{ui_scope}_{batch_id}_{'cleaned' if cleaned_only else 'all'}",
         format_func=lambda x: {
             "raw": "📤 Raw uploads",
             "bronze": "🥉 Bronze (.parquet)",
@@ -1203,6 +1214,8 @@ def _render_file_browser(batch_id: str, *, cleaned_only: bool = False) -> None:
     from app.utils.batch_file_browser import build_batch_zip_as_csv
 
     zip_layers = set(layer_filter) if layer_filter else None
+    layers_key = "all" if not zip_layers else "_".join(sorted(zip_layers))
+    scope_key = "cleaned" if cleaned_only else "all"
     z1, z2, z3 = st.columns(3)
     with z1:
         st.download_button(
@@ -1210,6 +1223,7 @@ def _render_file_browser(batch_id: str, *, cleaned_only: bool = False) -> None:
             data=build_batch_zip(batch_id, layers=zip_layers),
             file_name=f"{batch_id}_files.zip",
             mime="application/zip",
+            key=f"zip_orig_{ui_scope}_{batch_id}_{scope_key}_{layers_key}",
             use_container_width=True,
             help="Parquet stays .parquet, Excel stays .xlsx, etc.",
         )
@@ -1219,6 +1233,7 @@ def _render_file_browser(batch_id: str, *, cleaned_only: bool = False) -> None:
             data=build_batch_zip(batch_id, layers={"bronze", "silver", "gold"}),
             file_name=f"{batch_id}_parquet.zip",
             mime="application/zip",
+            key=f"zip_parquet_{ui_scope}_{batch_id}_{scope_key}",
             use_container_width=True,
         )
     with z3:
@@ -1227,6 +1242,7 @@ def _render_file_browser(batch_id: str, *, cleaned_only: bool = False) -> None:
             data=build_batch_zip_as_csv(batch_id, layers=zip_layers),
             file_name=f"{batch_id}_csv.zip",
             mime="application/zip",
+            key=f"zip_csv_{ui_scope}_{batch_id}_{scope_key}_{layers_key}",
             use_container_width=True,
             help="Converts .parquet to .csv inside the ZIP only",
         )
@@ -1268,7 +1284,7 @@ def _render_file_browser(batch_id: str, *, cleaned_only: bool = False) -> None:
                     data=data,
                     file_name=fname,
                     mime=mime,
-                    key=f"dl_{batch_id}_{layer}_{info.relative_path}",
+                    key=f"dl_{ui_scope}_{scope_key}_{batch_id}_{layer}_{info.relative_path}",
                     help=f"Download {fname}",
                 )
 
@@ -1286,10 +1302,10 @@ def tab_files(batch_id: str | None) -> None:
 
     a1, a2, a3, a4 = st.columns(4)
     with a1:
-        if st.button("🔄 Refresh", use_container_width=True):
+        if st.button("🔄 Refresh", use_container_width=True, key="files_refresh"):
             st.rerun()
     with a2:
-        if st.button("📦 Parquet bundle", type="primary", use_container_width=True):
+        if st.button("📦 Parquet bundle", type="primary", use_container_width=True, key="files_parquet_bundle"):
             with st.spinner("Copying parquet files…"):
                 try:
                     if use_file_storage():
@@ -1303,7 +1319,7 @@ def tab_files(batch_id: str | None) -> None:
                 except Exception as exc:
                     _show_error(exc)
     with a3:
-        if st.button("📄 CSV copies", use_container_width=True):
+        if st.button("📄 CSV copies", use_container_width=True, key="files_csv_copies"):
             with st.spinner("Writing CSV copies…"):
                 try:
                     if use_file_storage():
@@ -1330,7 +1346,7 @@ def tab_files(batch_id: str | None) -> None:
         "All files", "Parquet only", "Pipeline outputs",
     ])
     with tab_all:
-        _render_file_browser(batch_id, cleaned_only=False)
+        _render_file_browser(batch_id, cleaned_only=False, ui_scope="files_all")
     with tab_parquet:
         from app.utils.batch_file_browser import parquet_file_infos
 
@@ -1347,7 +1363,7 @@ def tab_files(batch_id: str | None) -> None:
                 c3.download_button("⬇️ .parquet", data=data, file_name=fname, mime=mime,
                                      key=f"pq_{batch_id}_{info.layer}_{info.relative_path}")
     with tab_clean:
-        _render_file_browser(batch_id, cleaned_only=True)
+        _render_file_browser(batch_id, cleaned_only=True, ui_scope="files_cleaned")
 
 
 # ---------------------------------------------------------------------------
