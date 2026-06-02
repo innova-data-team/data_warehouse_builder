@@ -1,0 +1,26 @@
+[server]
+fileWatcherType = "none"
+# IMPORTANT (Windows): do not auto-open browser — it can crash the process (exit -1073741819)
+headless = true
+address = "127.0.0.1"
+port = 8501
+
+[browser]
+gatherUsageStats = false
+serverAddress = "127.0.0.1"
+serverPort = 8501
+
+[runner]
+# Reduce websocket desync when UI updates quickly
+fastReruns = true
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"
+
+[theme]
+primaryColor = "#3b82f6"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
+font = "sans serif"

@@ -1,0 +1,60 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: dwb_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: dw_user
+      MYSQL_PASSWORD: change_me
+    ports:
+      - "3306:3306"
+    volumes:
+      - dwb_mysql_data:/var/lib/mysql
+      - ./sql/generated/create_databases.sql:/docker-entrypoint-initdb.d/01-create-databases.sql:ro
+      - ./sql/generated/metadata/example_metadata_tables.sql:/docker-entrypoint-initdb.d/02-metadata.sql:ro
+      - ./sql/generated/grant_user.sql:/docker-entrypoint-initdb.d/03-grants.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: .
+    container_name: dwb_api
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      MYSQL_HOST: mysql
+    volumes:
+      - ./storage:/app/storage
+      - ./sql/generated:/app/sql/generated
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  streamlit:
+    build: .
+    container_name: dwb_streamlit
+    restart: unless-stopped
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      MYSQL_HOST: mysql
+    volumes:
+      - ./storage:/app/storage
+      - ./sql/generated:/app/sql/generated
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  dwb_mysql_data:

@@ -1,0 +1,51 @@
+# ============================================================
+# Data Warehouse Builder - Python dependencies
+# Tested with Python 3.11 / 3.12 on Windows + Linux
+# ============================================================
+
+# --- Web framework ---------------------------------------------------------
+fastapi==0.115.4
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+streamlit==1.45.1
+
+# --- Settings & validation -------------------------------------------------
+pydantic==2.9.2
+pydantic-settings==2.6.1
+
+# --- Database (MySQL) ------------------------------------------------------
+SQLAlchemy==2.0.36
+mysql-connector-python==9.1.0
+PyMySQL==1.1.1            # fallback driver
+alembic==1.13.3           # optional migrations for metadata DB
+
+# --- Data engines ----------------------------------------------------------
+polars==1.12.0
+pandas==2.2.3
+pyarrow==17.0.0
+numpy==2.1.2
+
+# --- File format support ---------------------------------------------------
+openpyxl==3.1.5           # .xlsx read/write
+xlsxwriter==3.2.0         # rich .xlsx writing for exports
+chardet==5.2.0            # encoding detection
+charset-normalizer==3.4.0 # encoding detection (fallback)
+
+# --- Arabic / text utilities ----------------------------------------------
+PyArabic==0.6.15          # Arabic shaping/normalization helpers
+python-bidi==0.6.0        # bidi handling for reports
+Unidecode==1.3.8
+
+# --- Utilities -------------------------------------------------------------
+python-dateutil==2.9.0.post0
+orjson==3.10.10
+loguru==0.7.2
+rich==13.9.4
+tenacity==9.0.0
+
+# --- Dev / test ------------------------------------------------------------
+pytest==8.3.3
+pytest-asyncio==0.24.0
+httpx==0.27.2
+ruff==0.7.1
+mypy==1.13.0

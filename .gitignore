@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.idea/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated artifacts
+storage/raw/*
+!storage/raw/.gitkeep
+storage/cache/*
+!storage/cache/.gitkeep
+storage/exports/*
+!storage/exports/.gitkeep
+storage/reports/*
+!storage/reports/.gitkeep
+storage/batches/*
+!storage/batches/.gitkeep
+sql/generated/**/*.sql
+!sql/generated/**/example_*.sql
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+*.log
